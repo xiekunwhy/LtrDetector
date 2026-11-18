@@ -43,7 +43,7 @@ int getOptionalArg(vector<string> * args, string option){
     string answer = "-1";
 	auto it = std::find(args->begin(),args->end(),option);
 
-	if(it!=args->end() & ++it !=args->end()){
+	if(it!=args->end() && ++it !=args->end()){
 		answer = * it;
 	}
 	return stoi(answer);
@@ -60,7 +60,9 @@ int main(int argc, char * argv[]) {
 	int gapTol = 200;
 	int threads = 1;
 	string chromDir ="";
+	string seqFile = "";
 	string outputDir = "";
+	string outputPrefix = "";
 	bool seqLevel = false;
 	bool printRawScores = false;
 	bool printCleanScores = false;
@@ -72,9 +74,12 @@ int main(int argc, char * argv[]) {
 	string helpMessage = 
 	"| -arg     | Description | Default |\n"
 	"| ---------------- | ----------- | ------- |\n"
-	"| -fasta | Directory containing files to be scanned. Files must have .fa extension. | required |\n"
+	"| -seqFile | FASTA file to be scanned. May contain multiple sequences. | required unless -fasta or -chromDir is used |\n"
+	"| -fasta | Directory containing files to be scanned. Files must have .fa extension. | required unless -seqFile is used |\n"
+	"| -chromDir | Alias for -fasta. | required unless -seqFile is used |\n"
 	"| -destDir | Output directory where the results are stored. | required |\n"
-	"( IMPORTANT: Files under the output directory are deleted at the start of the program.)\n"
+	"| -prefix | Prefix for output file names. A dot is inserted before the output suffix. | input file name |\n"
+	"( Existing files with the same output names are overwritten; files with other prefixes are kept.)\n"
 	"| -minLen | Minimum length of complete LTR-RTs. Constrains scoring system and filters. | 400 |\n"
 	"| -maxLen |  Maximum length of complete LTR-RTs. Constrains scoring system and filters. | 22000 |\n"
 	"| -minLenLTR | Minimum length of LTR direct repeat. Constrains filters. | 100 |\n"
@@ -86,8 +91,8 @@ int main(int argc, char * argv[]) {
 	"| -nThreads | Number of cores to be used. | 1 |\n"
 	"| -gapTol | Number of base pairs that two plateaus can differ by in height/distance. Affects both plateau merging and pairing steps. | 200 |\n"
 	"|-seqLevel| Forces parallel execution on sequences within multi-FASTA file. Loads all sequences into memory | disabled |\n"
-	"| -rawScores | prints the raw scores to a file called xxxxRawScores.txt under the output directory. | disabled |\n"
-	"| -cleanedScores | prints the scores after merging to a file called xxxxCleanedScores.txt under the output directory. | disabled |\n"
+	"| -rawScores | prints the raw scores to a file called xxxxRawScores.csv under the output directory. | disabled |\n"
+	"| -cleanedScores | prints the scores after merging to a file called xxxxCleanedScores.csv under the output directory. | disabled |\n"
 	"| -nested | searches for nested elements. Results are stored in seperate files (marked as xxxxNestedDetector.bed) under the output directory | disabled |\n"
 	"| -bedFormat | prints BED format without additional annotations (PPT and TSD). | disabled |\n"
 	"| -help | prints this help message. | disabled |\n"
@@ -138,27 +143,45 @@ int main(int argc, char * argv[]) {
 			
 		}
 
+	auto seq = std::find(argList->begin(),argList->end(),"-seqFile");
 	auto src = std::find(argList->begin(),argList->end(),"-fasta");
+	auto legacySrc = std::find(argList->begin(),argList->end(),"-chromDir");
 
-	if(src!=argList->end() & ++src !=argList->end()){
+	bool hasSeqFile = seq!=argList->end() && ++seq !=argList->end();
+	bool hasFasta = src!=argList->end() && ++src !=argList->end();
+	bool hasChromDir = legacySrc!=argList->end() && ++legacySrc !=argList->end();
 
-		 chromDir = *src;
+	if((hasSeqFile ? 1 : 0) + (hasFasta ? 1 : 0) + (hasChromDir ? 1 : 0) != 1){
+		cout<<" Specify exactly one of '-seqFile', '-fasta', or '-chromDir', followed by a path"<<endl;
+		exit(1);
 	}
 
-	else{
-		cout<<" \'-fasta\' is a required argument"<<endl;
-		exit(1);
+	if(hasSeqFile){
+		seqFile = *seq;
+	}else if(hasFasta){
+		chromDir = *src;
+	}else{
+		chromDir = *legacySrc;
 	}
 
 	auto dest = std::find(argList->begin(),argList->end(),"-destDir");
 
-	if(dest!=argList->end() & ++dest != argList->end()){
+	if(dest!=argList->end() && ++dest != argList->end()){
 
 		outputDir = *dest;
 	}
 	else{
 		cout<<" \'-destDir\' is a required argument"<<endl;
 		exit(1);
+	}
+
+	auto prefix = std::find(argList->begin(),argList->end(),"-prefix");
+	if(prefix!=argList->end()){
+		if(++prefix == argList->end()){
+			cout<<" '-prefix' requires a value"<<endl;
+			exit(1);
+		}
+		outputPrefix = *prefix;
 	}
 
 	int test = getOptionalArg(argList, "-minLen");
@@ -238,30 +261,13 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
-	//Util::deleteFilesUnderDirectory(outputDir);
-
-
-	//delete previous output files
-
-	for (const auto & entry : fs::directory_iterator(outputDir)){
-
-		string fileName = entry.path();
-
-        cout << fileName <<endl;
-
-		const string detectorEnding = "Detector.bed";
-
-		if(fileName.length()>= detectorEnding.length() && !fileName.compare(fileName.length()-detectorEnding.length(),detectorEnding.length(),detectorEnding)){
-
-			std::remove(fileName.c_str());
-			cout<<"Deleted old output file: "<<fileName<<endl;
-
-		}
+	if(!seqFile.empty()){
+		cout << "Reading sequence file ..." << endl;
+		chromList->push_back(seqFile);
+	}else{
+		cout << "Reading chromosome directory ..." << endl;
+		Util::readChromList(chromDir, chromList,"fa");
 	}
-	
-
-	cout << "Reading chromosome directory ..." << endl;
-	Util::readChromList(chromDir, chromList,"fa");
 
 	ChromosomeOneDigit *chrom;
 
@@ -282,13 +288,13 @@ int main(int argc, char * argv[]) {
 
 			string chromFile = chromList->at(i);
 
-			int nameBegin = chromFile.find_last_of("/")+1;
+			int nameBegin = chromFile.find_last_of("/\\")+1;
 			int nameEnd = chromFile.find_last_of(".") ;
 			int len = nameEnd - nameBegin ;
 
 			string name = chromFile.substr(nameBegin,len);
 
-			string outFile = outputDir+"/"+name;
+			string outFile = outputDir+"/"+(outputPrefix.empty() ? name : outputPrefix + ".");
 			ChromListMaker chromListMaker(chromFile);
 			const vector<ChromosomeOneDigit *> *  chromList = chromListMaker.makeChromOneDigitList();
 			for(auto chrom : *chromList){
@@ -303,13 +309,13 @@ int main(int argc, char * argv[]) {
 
 			string chromFile = chromList->at(i);
 
-			int nameBegin = chromFile.find_last_of("/")+1;
+			int nameBegin = chromFile.find_last_of("/\\")+1;
 			int nameEnd = chromFile.find_last_of(".") ;
 			int len = nameEnd - nameBegin ;
 
 			string name = chromFile.substr(nameBegin,len);
 
-			string outFile = outputDir+"/"+name;
+			string outFile = outputDir+"/"+(outputPrefix.empty() ? name : outputPrefix + ".");
 			ChromListMaker chromListMaker(chromFile);
 			const vector<ChromosomeOneDigit *> *  chromList = chromListMaker.makeChromOneDigitList();
 			#pragma omp parallel for schedule(dynamic) num_threads(threads)

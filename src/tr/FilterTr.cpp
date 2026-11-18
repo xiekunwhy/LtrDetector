@@ -149,9 +149,9 @@ void FilterTr::tightenBounds()
 			downDiff = largerDiff;
 		}
 
-		else if(smallerLen = downLen){
+		else{
 			downDiff = smallerDiff;
-			upDiff = smallerDiff;
+			upDiff = largerDiff;
 		}
 
 		int upTotal = upLen+2*upDiff;
@@ -235,6 +235,10 @@ void FilterTr::tightenBounds()
 	//Removing duplicates
     std::sort( newList->begin(),newList->end(),[](BackwardTr * first, BackwardTr * second){ return first->getS1() < second->getS1();});
 	Util::deleteInVector(bList);
+
+	if(newList->size() == 1){
+		bList->push_back(newList->at(0));
+	}
 
 	for( int i = 0; i<(int)newList->size()-1;i++){
 

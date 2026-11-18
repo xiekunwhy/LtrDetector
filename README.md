@@ -1,8 +1,49 @@
 # LtrDetector
 
+[中文说明](README_cn.md)
+
 https://www.biorxiv.org/content/biorxiv/early/2018/10/22/448969.full.pdf
 
+## Modifications in this version
 
+This version preserves the upstream project history and adds the following changes:
+
+- Added `-seqFile` to scan one FASTA file directly, including multi-FASTA files. Exactly one of `-seqFile`, `-fasta`, or `-chromDir` must be supplied.
+- Retained the existing `-fasta` directory input and added `-chromDir` as a compatible alias.
+- Added `-prefix` for custom output names. For example, `-prefix sample1` produces `sample1.Detector.bed`, `sample1.RawScores.csv`, `sample1.CleanScores.csv`, and `sample1.NestedDetector.bed` when the corresponding outputs are enabled. Without `-prefix`, the original input-file-based naming is retained.
+- Removed the startup cleanup that deleted every `*Detector.bed` file under `-destDir`. Results with different prefixes can now safely share one output directory. A same-named output is truncated on its first write in the current run and appended to during the rest of that run, preventing duplicate records on reruns while preserving multi-sequence output.
+- Fixed end-iterator increments in optional argument parsing and added Windows-compatible path handling.
+- Added checks for unreadable, empty, or malformed FASTA input and protected k-mer scoring from segments shorter than `k`.
+- Fixed array deallocation, odd-sized median selection, the LTR boundary expansion branch, and retention of a single post-filter candidate.
+- Added a portable filesystem path conversion required by MinGW builds.
+
+### Linux static build
+
+A static Linux binary can be built with GCC, Make, and static OpenMP runtime libraries:
+
+```bash
+cd src
+make bin  # required only when the object directories do not exist
+make clean
+make tr -j4 CXXFLAGS="-std=c++11 -O3 -fopenmp -fmessage-length=0 -static"
+mv ../bin/LtrDetector ../bin/LtrDetector-static
+```
+
+Verify the result with `file ../bin/LtrDetector-static` and `ldd ../bin/LtrDetector-static`. The latter should report `not a dynamic executable`.
+
+### LTR_retriever conversion
+
+Two converters are included for the default 18-column LtrDetector output. Do not use `-bedFormat` when generating input for these converters.
+
+```bash
+# LTRharvest-like output for LTR_retriever -inharvest
+perl convert_ltrdetector.pl genome.fa sample1.Detector.bed > sample1.harvest.scn
+
+# LTR_FINDER-like output for LTR_retriever -infinder
+perl convert_ltrdetector_to_finder.pl genome.fa sample1.Detector.bed > sample1.finder.scn
+```
+
+The first converter corrects the TSD and strand column mapping for the current 18-column output. The second writes the 12-column LTR_FINDER-like format and converts percent identity to a 0-1 similarity value. Conversion changes only the file format; candidates and coordinates still come from LtrDetector.
 
 ## Compiling source code
 
@@ -58,6 +99,12 @@ To find help information:
 
 ```LtrDetector -chromDir ~/Data/thaliana/Fa -destDir ~/Data/thaliana/detector -nThreads 4```
 
+### Example run with a single FASTA file:
+
+```LtrDetector -seqFile ~/Data/thaliana/chr1.fa -destDir ~/Data/thaliana/detector -prefix sample1```
+
+With `-prefix sample1`, the output files are named `sample1.Detector.bed`, `sample1.RawScores.csv`, `sample1.CleanScores.csv`, and `sample1.NestedDetector.bed` when the corresponding output options are enabled. Without `-prefix`, the original input-file-based names are retained.
+
 ### Output Explanation
 
 LtrDetector output is formatted as a BED file with 18 columns, which correspond to:
@@ -111,9 +158,12 @@ Step 5: To run the visualization tool on chr1, pass LTR-RTs found in chr1 (.bed)
 
 | -arg     | Description | Default |
 | ---------------- | ----------- | ------- |
-| -chromDir | Directory containing files to be scanned. Files must have .fa extension. | required |
+| -seqFile | FASTA file to be scanned. May contain multiple sequences. | required unless -fasta or -chromDir is used |
+| -fasta | Directory containing files to be scanned. Files must have .fa extension. | required unless -seqFile is used |
+| -chromDir | Alias for -fasta. | required unless -seqFile is used |
 | -destDir | Output directory where the results are stored. | required |
-( IMPORTANT: Files under the output directory are deleted at the start of the program.)
+| -prefix | Prefix for output file names. A dot is inserted before the output suffix. | input file name |
+( Existing files with the same output names are overwritten; files with other prefixes are kept.)
 | -minLen | Minimum length of complete LTR-RTs. Constrains scoring system and filters. | 400 |
 | -maxLen |  Maximum length of complete LTR-RTs. Constrains scoring system and filters. | 22000 |
 | -minLenLTR | Minimum length of LTR direct repeat. Constrains filters. | 100 |
@@ -125,8 +175,8 @@ Step 5: To run the visualization tool on chr1, pass LTR-RTs found in chr1 (.bed)
 | -nThreads | Number of cores to be used. | 1 |
 | -gapTol | Number of base pairs that two plateaus can differ by in height/distance. Affects both plateau merging and pairing steps. | 200 |
 |-seqLevel| Forces parallel execution on sequences within multi-FASTA file. Loads all sequences into memory|disabled|
-| -rawScores | prints the raw scores to a file called xxxxRawScores.txt under the output directory. | disabled |
-| -cleanedScores | prints the scores after merging to a file called xxxxCleanedScores.txt under the output directory. | disabled |
+| -rawScores | prints the raw scores to a file called xxxxRawScores.csv under the output directory. | disabled |
+| -cleanedScores | prints the scores after merging to a file called xxxxCleanedScores.csv under the output directory. | disabled |
 | -nested | searches for nested elements. Results are stored in seperate files (marked as xxxxNestedDetector.bed) under the output directory | disabled |
 | -bedFormat | prints BED format without additional annotations (PPT and TSD). | disabled |
 | -help | prints this help message. | disabled |

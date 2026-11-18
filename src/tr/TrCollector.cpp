@@ -9,6 +9,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <set>
 #include "TrCollector.h"
 #include "ScorerTr.h"
 #include "DetectorTr.h"
@@ -147,8 +148,9 @@ void TrCollector::scoresFormat(vector<int> * scores,string outputDir,string type
 void TrCollector::outputAnnotation(vector<LtrTe*> * myTEList, string fileName)
 {
 	ofstream output;
-	// Append to file
-	output.open(fileName, std::fstream::out | std::fstream::app);
+	static set<string> initializedFiles;
+	bool firstWrite = initializedFiles.insert(fileName).second;
+	output.open(fileName, std::fstream::out | (firstWrite ? std::fstream::trunc : std::fstream::app));
 
 	if(output.is_open()){
 

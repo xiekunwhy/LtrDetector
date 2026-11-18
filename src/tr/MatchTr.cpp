@@ -179,7 +179,7 @@ int MatchTr::findMedian(int start, int end){
 	else{
 		std::nth_element(section1.begin(), section1.begin() + section1.size() / 2, section1.end());
 
-		return section1[(section1.size() / 2)+1];
+		return section1[section1.size() / 2];
 	}
 
 }

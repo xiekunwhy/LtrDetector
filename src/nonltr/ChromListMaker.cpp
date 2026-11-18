@@ -141,14 +141,16 @@ const vector<Chromosome *> * ChromListMaker::makeChromList() {
 
 const vector<ChromosomeOneDigit *> * ChromListMaker::makeChromOneDigitList() {
 	ifstream in(seqFile.c_str());
+	if (!in.is_open()) {
+		throw InvalidInputException("Cannot open " + seqFile);
+	}
 	bool isFirst = true;
 
 	ChromosomeOneDigit * chrom;
 	int seqLen = 0;
 	int seqIndex = 0;
-	while (in.good()) {
-		string line;
-		getline(in, line);
+	string line;
+	while (getline(in, line)) {
 		if (line[0] == '>') {
 			if (!isFirst) {
 				if (passedLimit) {
@@ -172,6 +174,12 @@ const vector<ChromosomeOneDigit *> * ChromListMaker::makeChromOneDigitList() {
 			chrom = new ChromosomeOneDigit();
 			chrom->setHeader(line);
 		} else {
+			if (isFirst) {
+				if (line.empty()) {
+					continue;
+				}
+				throw InvalidInputException("Expected a FASTA header in " + seqFile);
+			}
 			seqLen += line.size();
 			if (limit && seqLen > limit) {
 
@@ -212,6 +220,9 @@ const vector<ChromosomeOneDigit *> * ChromListMaker::makeChromOneDigitList() {
 				chrom->appendToSequence(line);
 			}
 		}
+	}
+	if (isFirst) {
+		throw InvalidInputException("No FASTA sequence found in " + seqFile);
 	}
 	if (passedLimit) {
 		passedLimit = false;

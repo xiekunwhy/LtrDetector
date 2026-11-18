@@ -84,9 +84,9 @@ void KmerHashTable<I, V>::initialize(int keyLength, V initialValueIn) {
 
 template<class I, class V>
 KmerHashTable<I, V>::~KmerHashTable() {
-	delete bases;
-	delete mMinusOne;
-	delete values;
+	delete[] bases;
+	delete[] mMinusOne;
+	delete[] values;
 }
 
 /**

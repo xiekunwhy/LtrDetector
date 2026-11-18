@@ -139,6 +139,10 @@ void ScorerTr::scoreNew() {
 		int start = segment->at(s)->at(0);
 		int end = segment->at(s)->at(1);
 
+		if (end - start + 1 < k) {
+			continue;
+		}
+
 		vector<int> * hashList = new vector<int>();
 		kmerTable->hash(segBases, start, end - k + 1, hashList);
 
@@ -193,7 +197,7 @@ int ScorerTr::findMedian(int start, int end)
 	{
 		std::nth_element(section1.begin(), section1.begin() + section1.size() / 2, section1.end());
 
-		return section1[(section1.size() / 2) + 1];
+		return section1[section1.size() / 2];
 	}
 }
 
